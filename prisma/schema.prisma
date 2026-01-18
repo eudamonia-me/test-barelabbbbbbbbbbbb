@@ -1,0 +1,177 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// User model for admin authentication
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  role      String   @default("admin")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Product model - core product information
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  brand       String
+  category    String   // foundation, concealer, powder, etc.
+  description String?  // neutral summary generated from tags
+  imageUrl    String?
+  price       Float?
+  currency    String?  @default("USD")
+  
+  // Formula information
+  ingredients String?  // comma-separated ingredient list
+  hasSPF      Boolean  @default(false)
+  spfValue    Int?
+  hasAlcohol  Boolean  @default(false)
+  
+  // Metadata
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  published   Boolean  @default(true)
+  
+  // Relations
+  comments    Comment[]
+  tags        ProductTag[]
+  viewCount   Int       @default(0)
+  
+  @@index([category])
+  @@index([brand])
+}
+
+// Comment model - raw user feedback
+model Comment {
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  // Comment content
+  text        String
+  source      String   @default("manual") // manual, instagram, reddit, etc.
+  sourceUrl   String?
+  
+  // User info (optional, anonymized)
+  skinType    String?  // dry, oily, combination, normal, sensitive
+  
+  // Processing status
+  processed   Boolean  @default(false)
+  sentiment   String?  // positive, negative, neutral
+  
+  // Metadata
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  tags        CommentTag[]
+  
+  @@index([productId])
+  @@index([processed])
+}
+
+// Tag dictionary - defines all possible tags
+model Tag {
+  id          String   @id @default(cuid())
+  key         String   @unique // e.g., "skin_type_dry", "finish_matte", "coverage_full"
+  category    String   // skin_type, finish, coverage, issue, property
+  label       String   // human-readable label
+  description String?
+  
+  // Metadata
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  productTags ProductTag[]
+  commentTags CommentTag[]
+  
+  @@index([category])
+}
+
+// ProductTag - aggregated tags for products (calculated from comments)
+model ProductTag {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  tagId     String
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  
+  // Aggregated data
+  count     Int      @default(1) // how many times this tag was mentioned
+  confidence Float   @default(0.0) // 0.0 to 1.0, calculated from count/total
+  
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([productId, tagId])
+  @@index([productId])
+  @@index([tagId])
+}
+
+// CommentTag - tags extracted from individual comments
+model CommentTag {
+  id        String   @id @default(cuid())
+  commentId String
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  tagId     String
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  
+  // Metadata
+  createdAt DateTime @default(now())
+  
+  @@unique([commentId, tagId])
+  @@index([commentId])
+  @@index([tagId])
+}
+
+// Analytics - track user behavior
+model PageView {
+  id         String   @id @default(cuid())
+  path       String
+  productId  String?
+  referrer   String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  
+  @@index([productId])
+  @@index([path])
+  @@index([createdAt])
+}
+
+// Product pairings - products often mentioned together
+model ProductPairing {
+  id              String   @id @default(cuid())
+  productId1      String
+  productId2      String
+  count           Int      @default(1) // how many times mentioned together
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@unique([productId1, productId2])
+  @@index([productId1])
+  @@index([productId2])
+}
+
+// Site settings - editable text and configuration
+model SiteSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  description String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
