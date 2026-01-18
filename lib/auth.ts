@@ -62,6 +62,16 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: 'jwt',
   },
+  secret: process.env.NEXTAUTH_SECRET,
+  ...(process.env.NEXTAUTH_URL 
+    ? { 
+        url: process.env.NEXTAUTH_URL 
+      } 
+    : process.env.VERCEL_URL 
+    ? { 
+        url: `https://${process.env.VERCEL_URL}` 
+      } 
+    : {}),
 }
 
 export async function getSession() {
